@@ -1,4 +1,4 @@
-window.PHCT_VERSION = 3;
+window.PHCT_VERSION = 4;
 // PHCT mod (phone): settings + game speed. Loaded from main.js before the game code; everything that touches game modules
 // waits for EVENT_GAME_INITED, and works on the code of whichever hot update the phone has (no change to project.jsc).
 (function () {
@@ -3184,7 +3184,8 @@ window.DT = DT;
         U.check(function (info) {
             if (!info) return end("không kết nối được, thử lại sau");
             if (info.version <= U.version) return end("đang là bản mới nhất (v" + U.version + ")");
-            get("phct_mod.js", function (text) {
+            get(info.file || "phct_mod.js", function (text) {   // a new name per version: GitHub caches a file for 5 minutes, the list and the file could disagree
+
                 if (!text) return end("tải file lỗi, thử lại sau");
                 if (md5(text) !== info.md5) return end("file tải về không khớp, không cài");
                 U.ready = save(text, info);

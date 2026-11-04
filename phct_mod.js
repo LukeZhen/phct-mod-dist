@@ -1,4 +1,4 @@
-window.PHCT_VERSION = 4;
+window.PHCT_VERSION = 5;
 // PHCT mod (phone): settings + game speed. Loaded from main.js before the game code; everything that touches game modules
 // waits for EVENT_GAME_INITED, and works on the code of whichever hot update the phone has (no change to project.jsc).
 (function () {

@@ -1,4 +1,4 @@
-window.PHCT_VERSION = 2;
+window.PHCT_VERSION = 3;
 // PHCT mod (phone): settings + game speed. Loaded from main.js before the game code; everything that touches game modules
 // waits for EVENT_GAME_INITED, and works on the code of whichever hot update the phone has (no change to project.jsc).
 (function () {
@@ -3174,16 +3174,21 @@ window.DT = DT;
     }
     U.install = function () {
         if (U.busy) return;
+        if (U.ready) { cc.game.end(); return; }   // the new code loads when the app really starts again; going to the home screen is not enough
         U.busy = true;
         T.say("Cập nhật mod: đang kiểm tra...");
-        function end(msg) { U.busy = false; U.state = msg; T.say("Cập nhật mod: " + msg); changed(); }
+        function end(msg) {
+            U.busy = false; U.state = msg; T.say("Cập nhật mod: " + msg); changed();
+            try { window.__require("Toast").default.show(msg); } catch (e) { }
+        }
         U.check(function (info) {
             if (!info) return end("không kết nối được, thử lại sau");
             if (info.version <= U.version) return end("đang là bản mới nhất (v" + U.version + ")");
             get("phct_mod.js", function (text) {
                 if (!text) return end("tải file lỗi, thử lại sau");
                 if (md5(text) !== info.md5) return end("file tải về không khớp, không cài");
-                end(save(text, info) ? "đã tải v" + info.version + ". Tắt game rồi mở lại để dùng" : "không ghi được file");
+                U.ready = save(text, info);
+                end(U.ready ? "đã tải v" + info.version + ". Bấm Cập nhật lần nữa: game đóng, mở lại là dùng bản mới" : "không ghi được file");
             });
         });
     };

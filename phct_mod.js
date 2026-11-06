@@ -1,4 +1,4 @@
-window.PHCT_VERSION = 5;
+window.PHCT_VERSION = 6;
 // PHCT mod (phone): settings + game speed. Loaded from main.js before the game code; everything that touches game modules
 // waits for EVENT_GAME_INITED, and works on the code of whichever hot update the phone has (no change to project.jsc).
 (function () {
@@ -1901,6 +1901,21 @@ var DT = (function () {
                          knb: model("ResModel").getResById(window.RES_MONEY4) - knb0 };
             });
         },
+        // Tri Kỷ > Chờ Đợi (thủ hộ): ConfidantModel.doProtect for every unlocked confidant whose turn of today is free
+        // (canConfidantProtect 0). The game's "Săn Sóc Nhanh tất cả" question only does one: one request per confidant.
+        san_soc: function () {
+            var cm = model("ConfidantModel"), ids = Object.keys(cm.getUnlockConfidants() || {}).map(Number), n = 0, favor = 0, stop = "";
+            return loop(ids.length, function () {
+                var id = ids.shift();
+                if (id === undefined) return Promise.resolve(false);
+                if (cm.canConfidantProtect(id) !== 0) return Promise.resolve(true);
+                return req(function (d) { cm.doProtect(id, function (r) { d(r || {}); }); }, 8000).then(function (r) {
+                    if (typeof r !== "object") { stop = ", server không trả lời (" + r + ")"; return false; }
+                    n++; favor += r.favor || 0;
+                    return new Promise(function (ok) { setTimeout(function () { ok(true); }, 200); });
+                });
+            }).then(function () { return { done: n, note: (n ? n + " người, Thiện Cảm +" + favor : "không còn lượt miễn phí") + stop }; });
+        },
         // Hành trang column of Check Info: counts of the chosen item ids + what the bag is worth:
         // favor = Thiện Cảm if every gift is given (Túi Thơm 70001 = 1, Ngân Sức 70002 = 2, Phỉ Thúy 70003 = 3),
         // scrolls = Cuộn Sách Tư Chất 20003-20006 together, attr = attributes if every type-1 item is used
@@ -2879,8 +2894,20 @@ window.DT = DT;
             button(b, c.name, bw, 62, -W / 2 + bw / 2 + i * (bw + 8), top - 34, function () { S.conf = c.id; S.sel = {}; render(); }, S.conf === c.id, 22);
         });
         var c = cs[S.conf - 1];
-        label(b, c.met ? "Thiện Cảm hiện tại: " + c.favor : "Chưa gặp " + c.name, 26, C.title, W, 40, 0, top - 92, LEFT);
         var it = T.favorItems(S.conf);
+        function sum(list, only) {   // the points these items give: [min, max] (some give 1-3 each)
+            var lo = 0, hi = 0;
+            list.forEach(function (p) {
+                if (only && !S.sel[p.id]) return;
+                var v = Array.isArray(p.value) ? p.value : [p.value, p.value];
+                lo += p.count * (Number(v[0]) || 0); hi += p.count * (Number(v[1]) || 0);
+            });
+            return lo === hi ? String(lo) : lo + "-" + hi;
+        }
+        var total = 0;
+        cs.forEach(function (x) { total += x.favor || 0; });
+        label(b, (c.met ? "Thiện Cảm " + c.name + ": " + c.favor : "Chưa gặp " + c.name) + "   |   Tổng 4 người: " + total +
+            "\nĐồ trong túi: riêng +" + sum(it.own) + ", chung +" + sum(it.all) + ", đang chọn +" + sum(it.own.concat(it.all), true), 22, C.title, W, 56, 0, top - 104, LEFT);
         function line(p) { return p.name + "  x" + p.count + "  (+" + (Array.isArray(p.value) ? p.value.join("-") : p.value) + "/món)"; }
         var H = top + 140;   // leaves the Buff button
         list(b, "fav", W, top * 2 - 240, 0 - 20, function (cc_, w) {

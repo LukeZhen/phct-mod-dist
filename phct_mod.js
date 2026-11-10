@@ -1,4 +1,4 @@
-window.PHCT_VERSION = 6;
+window.PHCT_VERSION = 7;
 // PHCT mod (phone): settings + game speed. Loaded from main.js before the game code; everything that touches game modules
 // waits for EVENT_GAME_INITED, and works on the code of whichever hot update the phone has (no change to project.jsc).
 (function () {
@@ -2400,6 +2400,33 @@ window.DT = DT;
         return "dùng " + used + " " + l.name + ", còn " + T.lenhCount(l.id);
     };
 
+    // ---- Hồ Cẩm Lý: every Cá Bạc (pool 1, resource 9, 10 a turn) and every Cá Cầu Nguyện (pool 2, item 160002) the player has, x10 first then x1.
+    // Pool 2 is always asked WITH the item (useitem = true): without it the game would take 100 KNB a turn. The reward popups are not opened. ----
+    T.xaCa = async function () {
+        var lm = model("LotteryModel"), rm = model("ResModel"), done = { 1: 0, 2: 0 };
+        function bac() { return rm.getResById(window.RES_MONEY9) || 0; }
+        function vang() { var p = prop(160002); return p ? p.count : 0; }
+        async function draw(type, ten, item, left) {
+            var before = left(), free0 = (lm.getLotteryLastFreeTime() || {})[type], code, ok = await new Promise(function (end) {
+                code = lm.reqDrawLottery(type, ten, item, function (o) { end(o !== false); });
+                if (code !== undefined && code !== null) end(false);   // the game refused before asking the server (not enough...)
+                setTimeout(function () { end(false); }, 12000);
+            });
+            await sleep(300);
+            if (!ok || (left() >= before && (lm.getLotteryLastFreeTime() || {})[type] === free0)) return false;   // a free turn of the day costs nothing
+            done[type] += ten ? 10 : 1;
+            if ((done[1] + done[2]) % 50 < (ten ? 10 : 1)) log("  đã quay " + (done[1] + done[2]) + " lượt");
+            return true;
+        }
+        var plan = [[1, false, bac, 10], [2, true, vang, 1]];   // [pool, use the item, how many left, cost of 1 turn]
+        for (var i = 0; i < plan.length; i++) {
+            var p = plan[i];
+            for (var g = 0; g < 1000 && p[2]() >= 10 * p[3]; g++) { check(); if (!await draw(p[0], true, p[1], p[2])) break; }
+            for (var h = 0; h < 10000 && p[2]() >= p[3]; h++) { check(); if (!await draw(p[0], false, p[1], p[2])) break; }
+        }
+        return "cá bạc " + done[1] + " lượt (còn " + bac() + "), cá vàng " + done[2] + " lượt (còn " + vang() + ")";
+    };
+
     // ---- 2. Khẩu Chiến: the player opens it and picks the fighter, the duels run here without their popups ----
     T.debate = { busy: false, last: "" };
     T.debateStatus = function () {
@@ -3014,6 +3041,7 @@ window.DT = DT;
         go("Săn Sóc tất cả Tri Kỷ (lượt miễn phí)", "Săn Sóc tất cả", function () { return T.sanSocAll(0); });
         go("Thỉnh An + Bái Kiến + Hội Hoa", "Thỉnh An", T.thinhAn);
         go("Chạy Nhiệm vụ ngày", "Nhiệm vụ ngày", T.nhiemVuNgay);
+        go("Xả cá Hồ Cẩm Lý (vàng + bạc)", "Xả cá", T.xaCa);
         go("Leo Trích Tinh Các (đến khi hết Nổi Tiếng)", "Trích Tinh Các", T.leoTrichTinh);
         if (T.job) button(b, "Dừng " + T.job, W, 64, 0, y, function () { T.stop = true; T.say("Đang dừng..."); }, true);
     }
